@@ -127,8 +127,8 @@ enum COBS_ERRORS cobs_decode(const uint8_t *input, size_t length, uint8_t *outpu
         code = input[read_index];
 
         if (code == COBS_FRAME_DELIMITER) {
-            *out_length = write_index;
-            return COBS_ERR_ZERO_BYTE_IN_INPUT;
+            *out_length = write_index - 1;
+            return COBS_ERR_EOF_IN_INPUT;
         }
 
         if (read_index + code > length && code != 1) {

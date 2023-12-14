@@ -14,11 +14,15 @@
 extern "C" {
 #endif
 
-enum COBS_ERRORS
-{
+enum COBS_ERRORS {
     COBS_ERR_SUCCESS = 0,
     COBS_ERR_BAD_OUTPUT_LENGTH = -1,
-    COBS_ERR_ZERO_BYTE_IN_INPUT = -2,
+    /**
+     * technically, this is not an error.
+     * Just an indication that the decoding
+     * ended with a zero byte.
+     */
+    COBS_ERR_EOF_IN_INPUT = -2,
     COBS_ERR_OUT_BUFFER_NULL = -4,
     COBS_ERR_ZERO_BEYOND_BUFFER = -5,
     COBS_ERR_BAD_PAYLOAD = -6,
