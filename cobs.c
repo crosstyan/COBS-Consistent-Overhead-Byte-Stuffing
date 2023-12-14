@@ -8,7 +8,49 @@
 #include <stddef.h>
 #include "cobs.h"
 
-#define COBS_DELIMITER 0x00
+#define COBS_ISV COBS_INPLACE_SENTINEL_VALUE
+typedef unsigned char cobs_byte_t;
+
+/**
+ * The COBS protocol requires an extra byte at the beginning and end of the payload.
+ * If encoding and decoding in-place, it becomes your responsibility to reserve these extra bytes.
+ * It's easy to mess this up and just put your own data at byte 0,
+ * but your data must start at byte 1.
+ *
+ * @note For safety and sanity, cobs_encode_inplace will error with COBS_RET_ERR_BAD_PAYLOAD
+ * if the first and last bytes aren't explicitly set to the sentinel value.
+ * You have to put them there.
+ */
+enum COBS_ERRORS cobs_encode_inplace(uint8_t *buf, unsigned len) {
+    if (!buf) {
+        return COBS_ERR_OUT_BUFFER_NULL;
+    }
+
+    if (len < 2) {
+        return COBS_ERR_BAD_OUTPUT_LENGTH;
+    }
+
+    cobs_byte_t *const src = (cobs_byte_t *) buf;
+    if ((src[0] != COBS_ISV) || (src[len - 1] != COBS_ISV)) {
+        return COBS_ERR_BAD_PAYLOAD;
+    }
+
+    unsigned patch = 0, cur = 1;
+    while (cur < len - 1) {
+        if (src[cur] == COBS_FRAME_DELIMITER) {
+            unsigned const ofs = cur - patch;
+            if (ofs > 255) { return COBS_ERR_BAD_PAYLOAD; }
+            src[patch] = (cobs_byte_t) ofs;
+            patch = cur;
+        }
+        ++cur;
+    }
+    unsigned const ofs = cur - patch;
+    if (ofs > 255) { return COBS_ERR_BAD_PAYLOAD; }
+    src[patch] = (cobs_byte_t) ofs;
+    src[cur] = 0;
+    return COBS_ERR_SUCCESS;
+}
 
 /**
  * @brief encode the input buffer to output buffer
@@ -31,7 +73,7 @@ enum COBS_ERRORS cobs_encode(const uint8_t *input, size_t length, uint8_t *outpu
     // at most one byte for every 254 non-zero bytes
     // plus one byte for the end-of-frame marker.
     if (*out_length < length + (length / 254) + 2) {
-        return COBS_ERR_OUT_BUFFER_TOO_SMALL;
+        return COBS_ERR_BAD_OUTPUT_LENGTH;
     }
 
     while (read_index < length) {
@@ -52,21 +94,10 @@ enum COBS_ERRORS cobs_encode(const uint8_t *input, size_t length, uint8_t *outpu
     }
 
     output[code_index] = code;
-    output[code_index + 1] = COBS_DELIMITER;
 
     *out_length = write_index;
     return COBS_ERR_SUCCESS;
 }
-
-/* Unstuffs "length" bytes of data at the location pointed to by
- * "input", writing the output * to the location pointed to by
- * "output". Returns the number of bytes written to "output" if
- * "input" was successfully unstuffed, and 0 if there was an
- * error unstuffing "input".
- *
- * Remove the "restrict" qualifiers if compiling with a
- * pre-C99 C dialect.
- */
 
 /**
  * @brief decode the input buffer to output buffer
@@ -75,6 +106,8 @@ enum COBS_ERRORS cobs_encode(const uint8_t *input, size_t length, uint8_t *outpu
  * @param [out]output output buffer
  * @param [in,out]out_length output buffer length
  * @return error code, see enum COBS_ERRORS
+ *
+ * @note could decode in place i.e. input == output
  */
 enum COBS_ERRORS cobs_decode(const uint8_t *input, size_t length, uint8_t *output, size_t *out_length) {
     size_t read_index = 0;
@@ -87,13 +120,14 @@ enum COBS_ERRORS cobs_decode(const uint8_t *input, size_t length, uint8_t *outpu
     }
 
     if (*out_length < (length - 1)) {
-        return COBS_ERR_OUT_BUFFER_TOO_SMALL;
+        return COBS_ERR_BAD_OUTPUT_LENGTH;
     }
 
     while (read_index < length) {
         code = input[read_index];
 
-        if (code == COBS_DELIMITER) {
+        if (code == COBS_FRAME_DELIMITER) {
+            *out_length = write_index;
             return COBS_ERR_ZERO_BYTE_IN_INPUT;
         }
 
