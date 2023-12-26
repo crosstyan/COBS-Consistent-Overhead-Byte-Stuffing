@@ -8,6 +8,10 @@
 #include <stddef.h>
 #include "cobs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define COBS_ISV COBS_INPLACE_SENTINEL_VALUE
 typedef unsigned char cobs_byte_t;
 
@@ -30,7 +34,7 @@ enum COBS_ERRORS cobs_encode_inplace(uint8_t *buf, unsigned len) {
         return COBS_ERR_BAD_OUTPUT_LENGTH;
     }
 
-    cobs_byte_t *const src = (cobs_byte_t *) buf;
+    cobs_byte_t *const src = (cobs_byte_t *)buf;
     if ((src[0] != COBS_ISV) || (src[len - 1] != COBS_ISV)) {
         return COBS_ERR_BAD_PAYLOAD;
     }
@@ -39,16 +43,20 @@ enum COBS_ERRORS cobs_encode_inplace(uint8_t *buf, unsigned len) {
     while (cur < len - 1) {
         if (src[cur] == COBS_FRAME_DELIMITER) {
             unsigned const ofs = cur - patch;
-            if (ofs > 255) { return COBS_ERR_BAD_PAYLOAD; }
-            src[patch] = (cobs_byte_t) ofs;
-            patch = cur;
+            if (ofs > 255) {
+                return COBS_ERR_BAD_PAYLOAD;
+            }
+            src[patch] = (cobs_byte_t)ofs;
+            patch      = cur;
         }
         ++cur;
     }
     unsigned const ofs = cur - patch;
-    if (ofs > 255) { return COBS_ERR_BAD_PAYLOAD; }
-    src[patch] = (cobs_byte_t) ofs;
-    src[cur] = 0;
+    if (ofs > 255) {
+        return COBS_ERR_BAD_PAYLOAD;
+    }
+    src[patch] = (cobs_byte_t)ofs;
+    src[cur]   = 0;
     return COBS_ERR_SUCCESS;
 }
 
@@ -61,10 +69,10 @@ enum COBS_ERRORS cobs_encode_inplace(uint8_t *buf, unsigned len) {
  * @return error code, see enum COBS_ERRORS
  */
 enum COBS_ERRORS cobs_encode(const uint8_t *input, size_t length, uint8_t *output, size_t *out_length) {
-    size_t read_index = 0;
+    size_t read_index  = 0;
     size_t write_index = 1;
-    size_t code_index = 0;
-    uint8_t code = 1;
+    size_t code_index  = 0;
+    uint8_t code       = 1;
 
     if (out_length == NULL) {
         return COBS_ERR_OUT_BUFFER_NULL;
@@ -79,16 +87,16 @@ enum COBS_ERRORS cobs_encode(const uint8_t *input, size_t length, uint8_t *outpu
     while (read_index < length) {
         if (input[read_index] == 0) {
             output[code_index] = code;
-            code = 1;
-            code_index = write_index++;
+            code               = 1;
+            code_index         = write_index++;
             read_index++;
         } else {
             output[write_index++] = input[read_index++];
             code++;
             if (code == 0xFF) {
                 output[code_index] = code;
-                code = 1;
-                code_index = write_index++;
+                code               = 1;
+                code_index         = write_index++;
             }
         }
     }
@@ -110,7 +118,7 @@ enum COBS_ERRORS cobs_encode(const uint8_t *input, size_t length, uint8_t *outpu
  * @note could decode in place i.e. input == output
  */
 enum COBS_ERRORS cobs_decode(const uint8_t *input, size_t length, uint8_t *output, size_t *out_length) {
-    size_t read_index = 0;
+    size_t read_index  = 0;
     size_t write_index = 0;
     uint8_t code;
     uint8_t i;
@@ -148,3 +156,7 @@ enum COBS_ERRORS cobs_decode(const uint8_t *input, size_t length, uint8_t *outpu
     *out_length = write_index;
     return COBS_ERR_SUCCESS;
 }
+
+#ifdef __cplusplus
+}
+#endif
